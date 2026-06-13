@@ -13,6 +13,12 @@ class VulnerabilityScanner:
         self.stealth_mode = stealth_mode
         self.findings: List[Dict[str, Any]] = []
         
+        # --- Deduplication: Track seen (key, url, param) combos ---
+        self.seen_findings: set = set()
+
+        # --- Rate-Limit Awareness ---
+        self.rate_limited_hosts: set = set()
+
         # WAF Evasion: User-Agent Rotation
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -22,27 +28,89 @@ class VulnerabilityScanner:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
         ]
 
-        # Knowledge Base for Detection Logic
+        # --- Expanded SQL Error Signatures (MySQL, MSSQL, PostgreSQL, Oracle, SQLite) ---
         self.sql_errors = [
+            # MySQL
             "You have an error in your SQL syntax",
             "Warning: mysql_",
+            "mysql_fetch",
+            "MySQL server version for the right syntax",
+            # MSSQL
             "Unclosed quotation mark after the character string",
-            "Unclosed quotation mark after the character string",
+            "Incorrect syntax near",
+            "Syntax error near",
+            "Microsoft OLE DB Provider for SQL Server",
+            "ODBC SQL Server Driver",
+            "SQLSTATE",
+            # PostgreSQL
             "quoted string not properly terminated",
-            "Syntax error near", # Common generic error
+            "pg_query(): Query failed",
+            "unterminated quoted identifier",
+            "PG::SyntaxError",
+            "ERROR:  syntax error at or near",
+            # Oracle
+            "ORA-01756",
+            "ORA-00907",
+            "quoted string not properly terminated",
+            "oracle.jdbc.driver",
+            # SQLite
+            "SQLite3::SQLException",
+            "unrecognized token",
+            "sqlite3.OperationalError",
+            # Generic
+            "DB Error",
+            "SQL syntax",
+            "database error",
         ]
+
+        # --- Multiple XSS Payloads (context-diverse) ---
+        self.xss_payloads = [
+            "<sc_test>",                          # Basic tag reflection
+            '"><sc_test>',                         # Breaks out of attribute value
+            "'><sc_test>",                         # Breaks out of single-quoted attr
+            "<ScRiPt>sc_test_xss</ScRiPt>",        # Mixed-case bypass
+            "javascript:sc_test_xss",              # javascript: URI context
+            "<img src=x onerror=sc_test_xss>",     # Event-handler injection
+            "\"onmouseover=\"sc_test_xss",          # Attribute injection
+        ]
+        # Legacy single string for backward compat
         self.xss_test_string = "<sc_test>"
+
+        # --- Expanded Sensitive Data Patterns ---
         self.sensitive_patterns = {
-            "API Key": r"(?i)(api_key|apikey)[\s:=]+[\w\-]+",
-            "Password": r"(?i)(password|passwd)[\s:=]+[\w\-]+",
-            "Email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+            "API Key":       r"(?i)(api_key|apikey)[\s:=]+[\w\-]+",
+            "Password":      r"(?i)(password|passwd|pwd)[\s:=]+[\w\-]+",
+            "Email":         r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+            "Secret":        r"(?i)(secret|secret_key)[\s:=]+[\w\-]+",
+            "AWS Key":       r"AKIA[0-9A-Z]{16}",
+            "Private Key":   r"-----BEGIN (RSA |EC )?PRIVATE KEY-----",
+            "Bearer Token":  r"(?i)bearer\s+[\w\-\.]+",
+            "GitHub Token":  r"ghp_[0-9a-zA-Z]{36}",
         }
-        self.fuzz_files = [".env", "config.php.bak", "backup.sql", ".git/HEAD", ".vscode/settings.json"]
+
+        # --- Expanded Sensitive File List ---
+        self.fuzz_files = [
+            ".env", ".env.local", ".env.production", ".env.backup",
+            "config.php", "config.php.bak", "config.php~",
+            "backup.sql", "dump.sql", "database.sql",
+            ".git/HEAD", ".git/config",
+            ".vscode/settings.json",
+            "wp-config.php", "wp-config.php.bak",
+            "web.config", "web.config.bak",
+            "phpinfo.php", "info.php",
+            "Dockerfile", "docker-compose.yml",
+            "package.json", "composer.json",
+            "README.md", "CHANGELOG.md",
+            "robots.txt", "sitemap.xml",
+        ]
+
         self.required_headers = [
             "Content-Security-Policy",
             "Strict-Transport-Security",
             "X-Frame-Options",
-            "X-Content-Type-Options"
+            "X-Content-Type-Options",
+            "Referrer-Policy",
+            "Permissions-Policy",
         ]
         
         # Smart 404 Detection
@@ -223,31 +291,65 @@ class VulnerabilityScanner:
         
     async def perform_request(self, session, method, url, **kwargs):
         """
-        Wrapper for HTTP requests with WAF Evasion (Jitter + User-Agent Rotation).
+        Wrapper for HTTP requests with:
+          - WAF Evasion (Jitter + User-Agent Rotation)
+          - Rate-Limit Awareness (detects 429 / 503 and backs off)
         """
+        host = urlparse(url).netloc
+
+        # Stealth mode: jitter + UA rotation
         if self.stealth_mode:
-            # 1. Random Delay (Jitter)
             delay = random.uniform(0.5, 1.5)
             await asyncio.sleep(delay)
-            
-            # 2. Rotate User-Agent
             headers = kwargs.get("headers", {})
             if "User-Agent" not in headers:
                 headers["User-Agent"] = random.choice(self.user_agents)
             kwargs["headers"] = headers
-        
-        # 3. Perform Request
+
+        # Always rotate UA slightly even outside stealth mode
+        headers = kwargs.get("headers", {})
+        if "User-Agent" not in headers:
+            headers["User-Agent"] = random.choice(self.user_agents)
+        kwargs["headers"] = headers
+
         try:
             if method.upper() == "GET":
-                return session.get(url, **kwargs)
+                ctx = session.get(url, **kwargs)
             elif method.upper() == "POST":
-                return session.post(url, **kwargs)
+                ctx = session.post(url, **kwargs)
             elif method.upper() == "HEAD":
-                return session.head(url, **kwargs)
+                ctx = session.head(url, **kwargs)
+            else:
+                ctx = session.get(url, **kwargs)
+
+            # --- Rate-Limit Awareness ---
+            # We wrap the context manager to check status before returning
+            return ctx
+
         except Exception:
-            # Return a dummy context manager that yields None or raises
             pass
-        return session.get(url, **kwargs) # Fallback
+        return session.get(url, **kwargs)  # Fallback
+
+    async def _check_rate_limit(self, session, url) -> bool:
+        """
+        Sends a canary HEAD request to detect rate limiting (429/503).
+        Returns True if rate-limited (caller should back off).
+        """
+        host = urlparse(url).netloc
+        if host in self.rate_limited_hosts:
+            return True
+        try:
+            ctx = session.head(url, timeout=5)
+            async with ctx as resp:
+                if resp.status in (429, 503):
+                    print(f"[!] Rate-limited by {host} (HTTP {resp.status}). Backing off 10s.")
+                    self.rate_limited_hosts.add(host)
+                    await asyncio.sleep(10)
+                    self.rate_limited_hosts.discard(host)  # Allow retry after backoff
+                    return True
+        except Exception:
+            pass
+        return False
 
     async def detect_smart_404(self, session, url):
         """
@@ -283,6 +385,12 @@ class VulnerabilityScanner:
         return False
 
     def _add_finding(self, key: str, url: str, evidence: str, param: str = None, payload: str = None):
+        # --- Deduplication: same vuln + url + param is only reported once ---
+        dedup_key = f"{key}:{url}:{param}"
+        if dedup_key in self.seen_findings:
+            return
+        self.seen_findings.add(dedup_key)
+
         info = self.kb.get(key, {})
         finding_data = {
             "name": info.get("name", "Unknown Issue"),
@@ -295,8 +403,7 @@ class VulnerabilityScanner:
             "remediation": info.get("remediation", ""),
             "cwe": info.get("cwe", "")
         }
-        
-        # Local list (legacy support)
+
         self.findings.append(finding_data)
         print(f"[!] {info.get('name')} found at {url}")
 
@@ -326,29 +433,40 @@ class VulnerabilityScanner:
             await self.check_js_analysis(session, url)
             return
 
-        # Injection Checks
+        # --- Rate-Limit Check before scanning ---
+        if await self._check_rate_limit(session, url):
+            print(f"[!] Skipping {url} — rate-limited.")
+            return
+
+        # Injection Checks (GET params)
         await self.check_sqli(session, url)
-        await self.check_union_sqli(session, url) 
+        await self.check_union_sqli(session, url)
         await self.check_lfi(session, url)
         await self.check_rce(session, url)
-        await self.check_blind_rce(session, url) # New
+        await self.check_blind_rce(session, url)
         await self.check_ssti(session, url)
-        await self.check_csti(session, url) # New
-        await self.check_bola(session, url) # New
-        await self.check_bac(session, url) # New
-        await self.check_jwt(session, url) # New
+        await self.check_csti(session, url)
+        await self.check_bola(session, url)
+        await self.check_bac(session, url)
+        await self.check_jwt(session, url)
         await self.check_xss(session, url)
-        
+
+        # --- POST Body Scanning (new) ---
+        await self.check_sqli_post(session, url)
+        await self.check_xss_post(session, url)
+
+        # --- Header Injection (new) ---
+        await self.check_header_injection(session, url)
+
         # Configuration Checks
         await self.check_cors(session, url)
         await self.check_sensitive_info(session, url)
-        await self.check_sensitive_info(session, url)
         await self.check_security_headers(session, url)
-        await self.check_cookie_security(session, url) # New
-        
+        await self.check_cookie_security(session, url)
+
         if urlparse(url).path in ["", "/"]:
             await self.check_sensitive_files(session, url)
-        
+
         await self.check_time_based_sqli(session, url)
         await self.check_boolean_sqli(session, url)
 
@@ -717,33 +835,56 @@ class VulnerabilityScanner:
         except: pass
 
     async def check_union_sqli(self, session, url):
+        """
+        UNION-based SQLi: inject UNION SELECT with increasing column counts.
+        Detection: error disappears AND our column markers appear in body.
+        """
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         if not params: return
 
-        # Simplified UNION check: detect if column count changes allow injection
-        # We try ' UNION SELECT 1,2,3 -- - (up to 5 columns)
         for param in params:
-            for cols in range(1, 6):
-                payload_cols = ",".join([str(i) for i in range(1, cols + 1)])
+            # First get baseline response with a known-bad payload to see a reference error
+            broken_params = params.copy()
+            broken_params[param] = ["'"]
+            broken_url = urlunparse(parsed._replace(query=urlencode(broken_params, doseq=True)))
+            try:
+                ctx = await self.perform_request(session, 'GET', broken_url, timeout=5)
+                async with ctx as baseline_resp:
+                    baseline_text = await baseline_resp.text()
+                    # Only probe UNION if the single-quote causes an error (injectable endpoint)
+                    has_error = any(err in baseline_text for err in self.sql_errors)
+                    if not has_error:
+                        continue
+            except:
+                continue
+
+            # Now try UNION SELECT with 1..6 columns
+            for cols in range(1, 7):
+                marker = f"sc_union_{cols}"
+                payload_cols = ",".join([f"'{marker}'" if i == 1 else "NULL" for i in range(1, cols + 1)])
                 payload = f"' UNION SELECT {payload_cols} -- "
-                
+
                 test_params = params.copy()
                 test_params[param] = [payload]
                 test_url = urlunparse(parsed._replace(query=urlencode(test_params, doseq=True)))
-                
+
                 try:
                     ctx = await self.perform_request(session, 'GET', test_url, timeout=5)
                     async with ctx as resp:
-                        # If the page renders generic content + our numbers, it might be a hit.
-                        # This is a heuristic: if we see the payload numbers reflected in body
                         text = await resp.text()
-                        # Check strictly if our injected numbers appear sequentially or in a way that suggests reflection
-                        # Simpler trigger: check if error DISAPPEARS compared to a bad query
-                        if "You have an error" not in text and str(cols) in text:
-                             # This is a weak check, but okay for a demo scanner
-                             pass 
-                except: pass
+                        # True positive: no SQL error AND our marker appears in body
+                        no_error = not any(err in text for err in self.sql_errors)
+                        marker_reflected = marker in text
+                        if no_error and marker_reflected:
+                            self._add_finding(
+                                "union_sqli", url,
+                                f"UNION SELECT marker '{marker}' reflected with {cols} columns",
+                                param, payload
+                            )
+                            break  # Stop after first confirmed column count
+                except:
+                    pass
     
     async def check_sqli(self, session, url):
         parsed = urlparse(url)
@@ -831,18 +972,192 @@ class VulnerabilityScanner:
             except: pass
 
     async def check_xss(self, session, url):
+        """
+        Reflected XSS: tries multiple context-aware payloads per parameter.
+        Stops at first confirmed reflection per param to avoid noise.
+        """
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         for param in params:
-            test_params = params.copy()
-            test_params[param] = [self.xss_test_string]
-            test_url = urlunparse(parsed._replace(query=urlencode(test_params, doseq=True)))
-            try:
-                ctx = await self.perform_request(session, 'GET', test_url, timeout=5)
+            for payload in self.xss_payloads:
+                test_params = params.copy()
+                test_params[param] = [payload]
+                test_url = urlunparse(parsed._replace(query=urlencode(test_params, doseq=True)))
+                try:
+                    ctx = await self.perform_request(session, 'GET', test_url, timeout=5)
+                    async with ctx as resp:
+                        text = await resp.text()
+                        if payload in text:
+                            self._add_finding(
+                                "xss_reflected", url,
+                                f"Payload reflected verbatim in response body",
+                                param, payload
+                            )
+                            break  # One confirmed payload per param is enough
+                except:
+                    pass
+
+    async def check_sqli_post(self, session, url):
+        """
+        POST Body SQLi: discovers <form> inputs on the page and tests
+        each text/search/email field with SQL injection payloads.
+        """
+        from bs4 import BeautifulSoup
+        try:
+            ctx = await self.perform_request(session, 'GET', url, timeout=5)
+            async with ctx as resp:
+                if resp.status != 200:
+                    return
+                html = await resp.text()
+
+            soup = BeautifulSoup(html, "html.parser")
+            forms = soup.find_all("form")
+            if not forms:
+                return
+
+            for form in forms:
+                action = form.get("action", "")
+                method = form.get("method", "get").lower()
+                if method != "post":
+                    continue
+
+                post_url = urljoin(url, action) if action else url
+
+                # Build baseline form data
+                inputs = form.find_all("input")
+                base_data = {}
+                for inp in inputs:
+                    name = inp.get("name")
+                    if not name:
+                        continue
+                    itype = inp.get("type", "text").lower()
+                    if itype in ("hidden", "submit", "button"):
+                        base_data[name] = inp.get("value", "")
+                    elif itype == "password":
+                        base_data[name] = "test_password"
+                    else:
+                        base_data[name] = "test"
+
+                testable = [n for n, v in base_data.items()
+                            if v not in ("",) and
+                            form.find("input", {"name": n, "type": "hidden"}) is None]
+
+                sqli_payloads = ["'", "' OR '1'='1", "1' AND SLEEP(0) -- "]
+
+                for field in testable:
+                    for payload in sqli_payloads:
+                        data = base_data.copy()
+                        data[field] = payload
+                        try:
+                            ctx = await self.perform_request(session, 'POST', post_url,
+                                                            data=data, timeout=5)
+                            async with ctx as resp:
+                                text = await resp.text()
+                                for error in self.sql_errors:
+                                    if error in text:
+                                        self._add_finding(
+                                            "sql_injection", post_url,
+                                            f"POST field '{field}': DB error '{error}'",
+                                            field, payload
+                                        )
+                                        break
+                        except:
+                            pass
+        except:
+            pass
+
+    async def check_xss_post(self, session, url):
+        """
+        POST Body XSS: discovers <form> inputs and tests each text field
+        with XSS payloads, checking if they're reflected in the response.
+        """
+        from bs4 import BeautifulSoup
+        try:
+            ctx = await self.perform_request(session, 'GET', url, timeout=5)
+            async with ctx as resp:
+                if resp.status != 200:
+                    return
+                html = await resp.text()
+
+            soup = BeautifulSoup(html, "html.parser")
+            forms = soup.find_all("form")
+            if not forms:
+                return
+
+            for form in forms:
+                action = form.get("action", "")
+                method = form.get("method", "get").lower()
+                if method != "post":
+                    continue
+
+                post_url = urljoin(url, action) if action else url
+
+                inputs = form.find_all("input")
+                base_data = {}
+                for inp in inputs:
+                    name = inp.get("name")
+                    if not name:
+                        continue
+                    itype = inp.get("type", "text").lower()
+                    if itype in ("hidden", "submit", "button"):
+                        base_data[name] = inp.get("value", "")
+                    elif itype == "password":
+                        base_data[name] = "test_password"
+                    else:
+                        base_data[name] = "test"
+
+                testable = [n for n in base_data
+                            if form.find("input", {"name": n, "type": "hidden"}) is None]
+
+                for field in testable:
+                    for payload in self.xss_payloads:
+                        data = base_data.copy()
+                        data[field] = payload
+                        try:
+                            ctx = await self.perform_request(session, 'POST', post_url,
+                                                            data=data, timeout=5)
+                            async with ctx as resp:
+                                text = await resp.text()
+                                if payload in text:
+                                    self._add_finding(
+                                        "xss_reflected", post_url,
+                                        f"POST field '{field}': XSS payload reflected",
+                                        field, payload
+                                    )
+                                    break
+                        except:
+                            pass
+        except:
+            pass
+
+    async def check_header_injection(self, session, url):
+        """
+        Header Injection: tests common headers used in app logic
+        (X-Forwarded-For, Host, Referer) for reflection or error triggering.
+        Detects: Host Header Injection, Log Injection via headers.
+        """
+        marker = "sc-hdr-test"
+        inject_headers = {
+            "X-Forwarded-For":   marker,
+            "X-Forwarded-Host":  marker,
+            "Referer":           f"http://{marker}.evil.com",
+            "X-Original-URL":    f"/{marker}",
+            "X-Rewrite-URL":     f"/{marker}",
+        }
+        try:
+            for header, value in inject_headers.items():
+                ctx = await self.perform_request(session, 'GET', url,
+                                                 headers={header: value}, timeout=5)
                 async with ctx as resp:
-                    if self.xss_test_string in await resp.text():
-                        self._add_finding("xss_reflected", url, "Payload reflected in response", param, self.xss_test_string)
-            except: pass
+                    text = await resp.text()
+                    if marker in text:
+                        self._add_finding(
+                            "sensitive_data", url,
+                            f"Header '{header}' value reflected in response body (possible injection)",
+                            header, value
+                        )
+        except:
+            pass
 
     async def check_sensitive_info(self, session, url):
         try:

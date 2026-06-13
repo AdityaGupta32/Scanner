@@ -138,23 +138,36 @@ class Spider:
                     try:
                         await page.goto(url, timeout=15000, wait_until="networkidle")
                         
-                        # Extract Links
+                        # Extract Links from <a> tags
                         links = await page.evaluate("""
                             () => Array.from(document.querySelectorAll('a')).map(a => a.href)
                         """)
-                        
-                        for full_url in links:
+
+                        # Extract Form Action URLs (GET forms become crawlable)
+                        form_urls = await page.evaluate("""
+                            () => Array.from(document.querySelectorAll('form')).map(f => {
+                                const action = f.action || window.location.href;
+                                if (f.method && f.method.toLowerCase() === 'post') return null;
+                                // Build query string from input defaults
+                                const inputs = Array.from(f.querySelectorAll('input[name]'));
+                                const params = inputs.map(i => encodeURIComponent(i.name) + '=' + encodeURIComponent(i.value || 'test')).join('&');
+                                return params ? action + '?' + params : action;
+                            }).filter(Boolean)
+                        """)
+
+                        all_urls = links + form_urls
+                        for full_url in all_urls:
                             parsed = urlparse(full_url)
                             if not parsed.scheme or not parsed.netloc: continue
-                            
+
                             clean_url = parsed.scheme + "://" + parsed.netloc + parsed.path
                             if parsed.query: clean_url += "?" + parsed.query
-                            
+
                             if self._is_internal(clean_url):
                                  if clean_url not in self.visited_urls and clean_url not in queue:
                                      self.visited_urls.add(clean_url)
                                      queue.append(clean_url)
-                                     
+
                     except Exception as e:
                         print(f"[!] Error crawling {url}: {e}")
                 
@@ -176,19 +189,39 @@ class Spider:
                         html = await response.text()
                         soup = BeautifulSoup(html, "html.parser")
                         self.visited_urls.add(self.base_url)
-                        
+
+                        # Extract <a href> links
                         for a_tag in soup.find_all("a", href=True):
                             href = a_tag["href"]
                             full_url = urljoin(self.base_url, href)
-                            
                             if self._is_internal(full_url):
                                 self.visited_urls.add(full_url)
-                                
+
+                        # Extract GET <form> action URLs with param placeholders
+                        for form in soup.find_all("form"):
+                            method = form.get("method", "get").lower()
+                            action = form.get("action", "")
+                            form_url = urljoin(self.base_url, action) if action else self.base_url
+
+                            if method == "get":
+                                # Build query string from input fields
+                                params = {}
+                                for inp in form.find_all("input", attrs={"name": True}):
+                                    itype = inp.get("type", "text").lower()
+                                    if itype not in ("submit", "button", "image", "reset"):
+                                        params[inp["name"]] = inp.get("value", "test")
+                                if params:
+                                    from urllib.parse import urlencode
+                                    form_url += "?" + urlencode(params)
+
+                            if self._is_internal(form_url):
+                                self.visited_urls.add(form_url)
+
                         print(f"[*] Static Crawl Success. Found {len(self.visited_urls)} URLs.")
                     else:
                         print(f"[!] Static Crawl Failed: HTTP {response.status}")
         except Exception as e:
             import traceback
             print(f"[!] Static Crawl Error: {e}\n{traceback.format_exc()}")
-        
+
         return list(self.visited_urls), []
