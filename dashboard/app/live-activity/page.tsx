@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Activity, Clock, Target, CheckCircle2, Database, Zap, Lock, Key, Info, Layers } from "lucide-react";
+import { Shield, Activity, Clock, Target, CheckCircle2, Database, Zap, Lock, Key, Info, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { MacTerminal } from "@/components/MacTerminal";
 import { LiveFindingCard } from "@/components/LiveFindingCard";
 import { Sidebar } from "@/components/Sidebar";
@@ -48,7 +48,17 @@ function LiveActivityContent() {
     const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
     const [scanIdState, setScanIdState] = useState<string | null>(null);
+    const [showAllAnalysis, setShowAllAnalysis] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
     const processedRef = useRef<Set<string>>(new Set());
+
+    // Check for mobile viewport
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+        checkMobile();
+        window.addEventListener("resize", checkMobile);
+        return () => window.removeEventListener("resize", checkMobile);
+    }, []);
 
     // Elapsed time counter
     useEffect(() => {
@@ -202,8 +212,13 @@ function LiveActivityContent() {
         return severityMatch && categoryMatch;
     });
 
+    // In mobile version, don't show whole findings list until "View All Analysis" is tapped
+    const displayedFindings = (isMobile && !showAllAnalysis)
+        ? filteredFindings.slice(0, 4)
+        : filteredFindings;
+
     return (
-        <div className="h-full w-full flex flex-col p-4 lg:p-6 pb-24 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
+        <div className="h-full w-full flex flex-col p-2 sm:p-4 lg:p-6 pb-6 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
             {/* Aurora Background */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
@@ -225,7 +240,7 @@ function LiveActivityContent() {
                 <div className="flex-1 rounded-[12px] md:rounded-[20px] lg:rounded-[24px] bg-bg-inner relative overflow-y-auto lg:overflow-hidden p-3 md:p-6 lg:p-8 flex flex-col min-h-0">
 
                     {/* Header - Mobile Optimized */}
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4 md:mb-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-6 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-[18px] bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center flex-shrink-0">
                                 <Activity className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" />
@@ -247,12 +262,12 @@ function LiveActivityContent() {
                         </div>
 
                         {/* Right side of Live Scan: Red vs Blue Combat Arena & Status Button */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-3 w-full sm:w-auto">
                             <RedBlueCombatArena isComplete={isComplete} />
 
                             <button
                                 onClick={() => router.push("/")}
-                                className={`px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center gap-2 transition-all ${isComplete
+                                className={`px-3.5 py-1.5 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 transition-all ${isComplete
                                     ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                                     : "bg-white/5 text-white/40"
                                     }`}
@@ -264,8 +279,8 @@ function LiveActivityContent() {
                         </div>
                     </div>
 
-                    {/* Stats Row - Compact on Mobile */}
-                    <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
+                    {/* Stats Row - 2x2 on Mobile, 4 columns on Desktop */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-4 md:mb-6 shrink-0">
                         <StatCard
                             icon={Target}
                             label="URLs"
@@ -310,9 +325,9 @@ function LiveActivityContent() {
                         </div>
 
                         {/* Right Column: Live Findings Section with Red & Blue Terminals */}
-                        <div className="flex flex-col lg:flex-1 lg:h-full lg:overflow-hidden mt-4 lg:mt-0">
+                        <div className="flex flex-col lg:flex-1 lg:h-full lg:overflow-hidden mt-2 lg:mt-0">
                             {/* Compact Red & Blue Combat Terminals (Critical, High & Medium) */}
-                            <div className="h-[125px] md:h-[135px] shrink-0 mb-2">
+                            <div className="h-[145px] md:h-[135px] shrink-0 mb-2">
                                 <DualCombatTerminals findings={findings} isRunning={!isComplete} />
                             </div>
 
@@ -324,6 +339,17 @@ function LiveActivityContent() {
                                         <h3 className="text-sm md:text-base font-semibold text-white/90">Findings</h3>
                                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-mono font-medium">{filteredFindings?.length || 0}</span>
                                     </div>
+
+                                    {/* Mobile "View All Analysis" quick toggle in header */}
+                                    {isMobile && filteredFindings.length > 4 && (
+                                        <button
+                                            onClick={() => setShowAllAnalysis(!showAllAnalysis)}
+                                            className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors flex items-center gap-1"
+                                        >
+                                            <span>{showAllAnalysis ? "View Less" : "View All Analysis"}</span>
+                                            {showAllAnalysis ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                        </button>
+                                    )}
 
                                     {/* Severity Pills - Sleek & Compact */}
                                     <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
@@ -388,13 +414,28 @@ function LiveActivityContent() {
                                             <p className="text-sm font-medium opacity-60">{(findings?.length || 0) > 0 ? "No matches for filter" : "Waiting for findings..."}</p>
                                         </motion.div>
                                     ) : (
-                                        filteredFindings.map((finding, index) => (
-                                            <LiveFindingCard
-                                                key={`${finding.name}-${finding.url}-${index}`}
-                                                finding={finding}
-                                                index={index}
-                                            />
-                                        ))
+                                        <>
+                                            {displayedFindings.map((finding, index) => (
+                                                <LiveFindingCard
+                                                    key={`${finding.name}-${finding.url}-${index}`}
+                                                    finding={finding}
+                                                    index={index}
+                                                />
+                                            ))}
+
+                                            {/* Mobile "View All Analysis" bottom expander button */}
+                                            {isMobile && filteredFindings.length > 4 && (
+                                                <div className="pt-2 pb-1">
+                                                    <button
+                                                        onClick={() => setShowAllAnalysis(!showAllAnalysis)}
+                                                        className="w-full py-2.5 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-emerald-400 font-medium text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+                                                    >
+                                                        <span>{showAllAnalysis ? "View Less" : `View All Analysis (${filteredFindings.length} Findings)`}</span>
+                                                        {showAllAnalysis ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </AnimatePresence>
                             </div>
@@ -435,17 +476,17 @@ function StatCard({
     glow: string;
 }) {
     return (
-        <div className="relative overflow-hidden rounded-xl md:rounded-[20px] bg-bg-card/80 backdrop-blur-xl border border-white/5 p-3 md:p-4 group hover:border-white/10 transition-colors h-full min-h-[80px] md:min-h-[100px] flex flex-col justify-between">
+        <div className="relative overflow-hidden rounded-xl md:rounded-[20px] bg-bg-card/80 backdrop-blur-xl border border-white/5 p-2.5 sm:p-3 md:p-4 group hover:border-white/10 transition-colors h-full min-h-[72px] sm:min-h-[80px] md:min-h-[100px] flex flex-col justify-between">
             {/* Ambient Glow */}
             <div className={`absolute -left-3 -top-3 md:-left-4 md:-top-4 w-16 h-16 md:w-24 md:h-24 ${glow}/10 rounded-full blur-[30px] md:blur-[40px] group-hover:${glow}/20 transition-all duration-500`} />
 
             <div className="relative z-10 flex flex-col h-full justify-between">
-                <div className="flex items-start justify-between mb-1">
-                    <span className="text-[10px] md:text-xs font-semibold tracking-widest text-white/40 uppercase truncate max-w-[80%]">{label}</span>
-                    {Icon && <Icon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${color} opacity-80`} />}
+                <div className="flex items-start justify-between mb-0.5 sm:mb-1">
+                    <span className="text-[10px] sm:text-xs font-semibold tracking-widest text-white/40 uppercase truncate max-w-[80%]">{label}</span>
+                    {Icon && <Icon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 ${color} opacity-80`} />}
                 </div>
                 <div>
-                    <p className={`text-xl md:text-2xl lg:text-3xl font-bold font-mono ${color} drop-shadow-[0_0_10px_currentColor] truncate`}>{value}</p>
+                    <p className={`text-lg sm:text-2xl lg:text-3xl font-bold font-mono ${color} drop-shadow-[0_0_10px_currentColor] truncate`}>{value}</p>
                 </div>
             </div>
         </div>

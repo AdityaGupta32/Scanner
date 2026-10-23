@@ -144,21 +144,23 @@ export function ScanResults({ scanId }: { scanId: string }) {
                                             document.body.removeChild(a2);
                                         }, 400);
                                     }}
-                                    className="flex items-center gap-1.5 bg-cyan-950/40 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/60 hover:border-cyan-400 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1.5 bg-cyan-950/40 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/60 hover:border-cyan-400 p-2 sm:px-3.5 sm:py-2 rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap"
                                     title="Download both VerseScan Technical Report and OWASP Audit PDF"
+                                    aria-label="Download Reports PDF"
                                 >
-                                    <Download className="w-3.5 h-3.5 text-cyan-400" />
-                                    Export PDFs (Both)
+                                    <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-cyan-400" />
+                                    <span className="hidden sm:inline">Export PDFs (Both)</span>
                                 </button>
                                 <a
                                     href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/owasp-report/${scanId}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-1 bg-emerald-950/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/50 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1 bg-emerald-950/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/50 p-2 sm:px-2.5 sm:py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
                                     title="Download OWASP GenAI Compliance Audit Only"
+                                    aria-label="Download OWASP Audit PDF"
                                 >
-                                    <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                                    OWASP Audit
+                                    <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+                                    <span className="hidden sm:inline">OWASP Audit</span>
                                 </a>
                             </div>
                         )}

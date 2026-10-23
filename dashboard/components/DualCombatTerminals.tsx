@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Terminal, Shield, Zap } from "lucide-react";
 
@@ -22,6 +22,7 @@ interface DualCombatTerminalsProps {
 export function DualCombatTerminals({ findings, isRunning = true }: DualCombatTerminalsProps) {
     const redScrollRef = useRef<HTMLDivElement>(null);
     const blueScrollRef = useRef<HTMLDivElement>(null);
+    const [mobileTab, setMobileTab] = useState<"red" | "blue">("red");
 
     // Filter CRITICAL, HIGH, and MEDIUM findings for Red and Blue terminals
     const combatFiltered = (findings || []).filter((f) => {
@@ -39,9 +40,37 @@ export function DualCombatTerminals({ findings, isRunning = true }: DualCombatTe
     }, [findings]);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full h-full min-h-0">
+        <div className="w-full h-full min-h-0 flex flex-col md:grid md:grid-cols-2 gap-2">
+            {/* Mobile Tab Switcher */}
+            <div className="flex md:hidden items-center bg-black/60 p-0.5 rounded-lg border border-white/10 shrink-0 gap-1">
+                <button
+                    onClick={() => setMobileTab("red")}
+                    className={`flex-1 py-1 px-2 rounded-md text-[10px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        mobileTab === "red"
+                            ? "bg-red-500/25 text-red-300 border border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                            : "text-white/40 hover:text-white/70"
+                    }`}
+                >
+                    <Zap className="w-3 h-3 text-red-500" />
+                    <span>RED EXPLOIT</span>
+                    <span className="text-[9px] bg-red-500/20 px-1 rounded text-red-300">{combatFiltered.length}</span>
+                </button>
+                <button
+                    onClick={() => setMobileTab("blue")}
+                    className={`flex-1 py-1 px-2 rounded-md text-[10px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        mobileTab === "blue"
+                            ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                            : "text-white/40 hover:text-white/70"
+                    }`}
+                >
+                    <Shield className="w-3 h-3 text-cyan-400" />
+                    <span>BLUE SHIELD</span>
+                    <span className="text-[9px] bg-cyan-500/20 px-1 rounded text-cyan-300">{combatFiltered.length}</span>
+                </button>
+            </div>
+
             {/* ── 1. RED TEAM OFFENSIVE TERMINAL (CRITICAL, HIGH & MEDIUM) ── */}
-            <div className="rounded-xl overflow-hidden bg-[#120709]/95 border border-red-500/25 shadow-[0_0_20px_rgba(239,68,68,0.1)] flex flex-col h-full min-h-0">
+            <div className={`rounded-xl overflow-hidden bg-[#120709]/95 border border-red-500/25 shadow-[0_0_20px_rgba(239,68,68,0.1)] flex-col h-full min-h-0 ${mobileTab === "red" ? "flex" : "hidden md:flex"}`}>
                 {/* Header Chrome */}
                 <div className="flex items-center justify-between px-2.5 py-1 bg-[#1f0a0d]/90 border-b border-red-500/15 shrink-0">
                     <div className="flex items-center gap-2">
@@ -111,7 +140,7 @@ export function DualCombatTerminals({ findings, isRunning = true }: DualCombatTe
             </div>
 
             {/* ── 2. BLUE TEAM SHIELD TERMINAL (DEFENSE & VIRTUAL PATCHING) ── */}
-            <div className="rounded-xl overflow-hidden bg-[#06101c]/95 border border-cyan-500/25 shadow-[0_0_20px_rgba(6,182,212,0.1)] flex flex-col h-full min-h-0">
+            <div className={`rounded-xl overflow-hidden bg-[#06101c]/95 border border-cyan-500/25 shadow-[0_0_20px_rgba(6,182,212,0.1)] flex-col h-full min-h-0 ${mobileTab === "blue" ? "flex" : "hidden md:flex"}`}>
                 {/* Header Chrome */}
                 <div className="flex items-center justify-between px-2.5 py-1 bg-[#0a1b30]/90 border-b border-cyan-500/15 shrink-0">
                     <div className="flex items-center gap-2">

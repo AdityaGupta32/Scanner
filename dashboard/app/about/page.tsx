@@ -7,7 +7,7 @@ import { Activity, Shield, Zap, Lock, Globe, Search, Database, FileText, CheckCi
 
 export default function AboutPage() {
     return (
-        <div className="h-full w-full flex flex-col p-4 lg:p-6 pb-24 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
+        <div className="h-full w-full flex flex-col p-2 sm:p-4 lg:p-6 pb-6 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
             {/* Aurora Background */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
@@ -26,22 +26,22 @@ export default function AboutPage() {
                 <Sidebar activeItem="About Us" />
 
                 {/* Main Content */}
-                <div className="flex-1 rounded-[12px] md:rounded-[20px] lg:rounded-[24px] bg-bg-inner relative overflow-y-auto glass-scrollbar p-4 md:p-8 lg:p-12 flex flex-col min-h-0">
+                <div className="flex-1 rounded-[12px] md:rounded-[20px] lg:rounded-[24px] bg-bg-inner relative overflow-y-auto glass-scrollbar p-3.5 sm:p-6 md:p-8 lg:p-12 flex flex-col min-h-0">
 
                     {/* Header */}
-                    <div className="mb-8 md:mb-12">
+                    <div className="mb-6 md:mb-12">
                         <GlitchHeading
                             text="About Versescan"
-                            className="text-3xl md:text-5xl lg:text-6xl tracking-tight mb-4"
+                            className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight mb-3 md:mb-4"
                         />
-                        <p className="text-white/60 text-lg md:text-xl max-w-2xl leading-relaxed">
+                        <p className="text-white/60 text-sm sm:text-base md:text-xl max-w-2xl leading-relaxed">
                             The future of vulnerability scanning. Fast, intelligent, and designed for the modern web.
                             We break security barriers, not just code.
                         </p>
                     </div>
 
                     {/* Features Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12 md:mb-16">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-8 md:mb-16">
                         <FeatureCard
                             icon={Search}
                             title="Neural Spider"
@@ -73,14 +73,14 @@ export default function AboutPage() {
                     </div>
 
                     {/* Final Verification Matrix */}
-                    <div className="glass-panel rounded-2xl md:rounded-[32px] p-6 md:p-10 mb-8 md:mb-12 flex flex-col w-full">
-                        <div className="flex items-center gap-3 mb-6 md:mb-8">
-                            <CheckCircle className="w-8 h-8 text-emerald-400" />
-                            <h2 className="text-2xl md:text-3xl font-bold text-white">System Capabilities Matrix</h2>
+                    <div className="glass-panel rounded-2xl md:rounded-[32px] p-4 sm:p-6 md:p-10 mb-8 md:mb-12 flex flex-col w-full">
+                        <div className="flex items-center gap-3 mb-4 md:mb-8">
+                            <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-emerald-400" />
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">System Capabilities Matrix</h2>
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        <div className="overflow-x-auto glass-scrollbar pb-2">
+                            <table className="w-full min-w-[550px] text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-white/10 text-white/40 text-xs md:text-sm uppercase tracking-wider">
                                         <th className="py-4 px-4 font-medium">Feature Category</th>

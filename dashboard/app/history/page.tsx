@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { getAllScans, getScanById, StoredScan } from "../../lib/scanStorage";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { motion } from "framer-motion";
-import { Activity, Shield, AlertTriangle, CheckCircle, ChevronDown, Download, RefreshCw, X, Search } from "lucide-react";
+import { Activity, Shield, AlertTriangle, CheckCircle, ChevronDown, Download, RefreshCw, X, Search, FileText } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { HistorySkeleton } from "@/components/HistorySkeleton";
 import { GlitchHeading } from "@/components/GlitchHeading";
@@ -142,7 +142,7 @@ export default function AnalyticsDashboard() {
     // Loading handled inside main layout
 
     return (
-        <div className="h-full w-full flex flex-col p-2 md:p-4 lg:p-6 pb-24 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
+        <div className="h-full w-full flex flex-col p-2 md:p-4 lg:p-6 pb-6 md:pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
             {/* Aurora Background */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
@@ -160,24 +160,22 @@ export default function AnalyticsDashboard() {
                 {/* Sidebar */}
                 <Sidebar activeItem="Dashboard" />
 
-
-
                 {/* Main Content */}
                 {isLoading ? <HistorySkeleton /> : (
                     <div className="flex-1 rounded-[12px] md:rounded-[20px] lg:rounded-[24px] bg-bg-inner relative overflow-y-auto glass-scrollbar p-3 md:p-6 lg:p-8 flex flex-col min-h-0">
                         {/* Header */}
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6 md:mb-10 shrink-0">
-                            <div>
-                                <div className="flex items-center gap-3 md:gap-4 mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-8 shrink-0">
+                            <div className="flex items-center justify-between w-full sm:w-auto">
+                                <div className="flex items-center gap-3 md:gap-4">
                                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-[18px] bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
                                         <Activity className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" />
                                     </div>
                                     <div>
                                         <GlitchHeading
                                             text="Command Center"
-                                            className="text-xl md:text-3xl tracking-tight"
+                                            className="text-lg sm:text-xl md:text-3xl tracking-tight"
                                         />
-                                        <div className="flex items-center gap-3 text-xs md:text-sm text-white/40 mt-1">
+                                        <div className="flex items-center gap-2 sm:gap-3 text-xs md:text-sm text-white/40 mt-0.5">
                                             <span className="flex items-center gap-1.5">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]"></span>
                                                 History Analysis
@@ -189,31 +187,37 @@ export default function AnalyticsDashboard() {
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1 no-scrollbar shrink-0">
+                            {/* Header Actions - Icon-only on mobile for PDF downloads, full on desktop */}
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                                 <button
                                     onClick={fetchScans}
-                                    className="glass-button px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center gap-2 hover:bg-white/15 whitespace-nowrap"
+                                    className="glass-button p-2.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center justify-center gap-2 hover:bg-white/15 transition-all"
+                                    title="Refresh Scan History"
+                                    aria-label="Refresh Scan History"
                                 >
-                                    <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                    Refresh
+                                    <RefreshCw className="w-4 h-4 text-white/80" />
+                                    <span className="hidden md:inline">Refresh</span>
                                 </button>
                                 <button
                                     onClick={handleExport}
-                                    className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all whitespace-nowrap"
-                                    title="Download both VerseScan Technical and OWASP GenAI Audit Reports"
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold p-2.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all"
+                                    title="Download VerseScan & OWASP Reports (2 PDFs)"
+                                    aria-label="Download Reports PDF"
                                 >
-                                    <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                    Export Reports (2 PDFs)
+                                    <Download className="w-4 h-4 text-black" />
+                                    <span className="hidden md:inline">Export Reports (2 PDFs)</span>
                                 </button>
                                 {selectedScan && (
                                     <a
                                         href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/owasp-report/${selectedScan.id}`}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="glass-button border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/40 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap"
+                                        className="glass-button border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/40 p-2.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center justify-center gap-1.5 transition-all"
+                                        title="Download OWASP GenAI Compliance Audit PDF Only"
+                                        aria-label="Download OWASP Audit PDF"
                                     >
-                                        <Download className="w-3.5 h-3.5 text-cyan-400" />
-                                        OWASP Audit Only
+                                        <FileText className="w-4 h-4 text-cyan-400" />
+                                        <span className="hidden md:inline">OWASP Audit</span>
                                     </a>
                                 )}
                             </div>

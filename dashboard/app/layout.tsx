@@ -23,7 +23,7 @@ export default function RootLayout({
         <BootAnimation />
         <MobileNav />
         <div className="fixed inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay z-[5]"></div>
-        <main className="h-dvh flex flex-col pt-16 lg:pt-0 relative z-0">
+        <main className="min-h-dvh lg:h-dvh flex flex-col pt-14 sm:pt-16 lg:pt-0 relative z-0">
           {children}
         </main>
       </body>

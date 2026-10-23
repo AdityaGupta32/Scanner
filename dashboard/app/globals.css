@@ -206,20 +206,11 @@ h6 {
 
 /* Mobile-specific optimizations */
 @media (max-width: 1023px) {
-
-  /* Ensure buttons are touch-friendly */
-  button,
-  a,
-  [role="button"] {
-    min-height: 44px;
-  }
-
-  /* Better input styling on mobile */
+  /* Better input styling on mobile - prevents iOS zoom */
   input,
   textarea,
   select {
     font-size: 16px !important;
-    /* Prevents zoom on iOS */
   }
 }
 

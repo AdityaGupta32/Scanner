@@ -132,7 +132,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 lg:p-8 relative overflow-hidden bg-black selection:bg-purple-500/30">
+    <div className="flex-1 w-full flex items-start sm:items-center justify-center p-2 sm:p-4 lg:p-8 pb-6 relative overflow-hidden bg-black selection:bg-purple-500/30">
       {/* Aurora Background Elements */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]" />
@@ -194,45 +194,44 @@ export default function Home() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="w-full h-full glass-panel rounded-[24px] md:rounded-[32px] lg:rounded-[48px] p-2 md:p-3 flex gap-3 relative z-10 overflow-hidden shadow-2xl ring-1 ring-white/10"
+        className="w-full h-full glass-panel rounded-[20px] md:rounded-[32px] lg:rounded-[48px] p-1.5 md:p-3 flex gap-3 relative z-10 overflow-hidden shadow-2xl ring-1 ring-white/10"
       >
         {/* Sidebar */}
         <Sidebar activeItem="Scanner" />
 
         {/* Main Content */}
-        <div className="flex-1 rounded-[20px] md:rounded-[32px] lg:rounded-[40px] bg-bg-inner relative overflow-y-auto glass-scrollbar p-4 md:p-8 lg:p-12 pt-8 md:pt-16 lg:pt-20 flex flex-col items-center justify-start">
+        <div className="flex-1 rounded-[16px] md:rounded-[32px] lg:rounded-[40px] bg-bg-inner relative overflow-y-auto glass-scrollbar p-3.5 sm:p-6 md:p-8 lg:p-12 pt-6 sm:pt-10 md:pt-16 lg:pt-20 flex flex-col items-center justify-start">
 
-          {/* Dynamic Status Pill */}
           {/* Dynamic Status Pill */}
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="mb-6 md:absolute md:top-8 md:left-1/2 md:-translate-x-1/2 md:mb-0"
+            className="mb-4 md:absolute md:top-8 md:left-1/2 md:-translate-x-1/2 md:mb-0"
           >
             {isStealth && (
-              <div className="px-4 py-1.5 rounded-full bg-bg-card border border-white/10 flex items-center gap-3 shadow-2xl backdrop-blur-xl">
+              <div className="px-3.5 py-1.5 rounded-full bg-bg-card border border-white/10 flex items-center gap-2.5 shadow-2xl backdrop-blur-xl">
                 <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shadow-[0_0_10px_#a855f7]" />
                 <span className="text-[10px] font-bold tracking-[0.15em] text-white/60 uppercase">Stealth Active</span>
               </div>
             )}
           </motion.div>
 
-          <div className="w-full max-w-2xl text-center mb-8 md:mb-12">
+          <div className="w-full max-w-2xl text-center mb-6 md:mb-12">
             <GlitchHeading
               text="Safety First."
-              className="text-3xl md:text-5xl lg:text-7xl mb-4 md:mb-6 tracking-tight"
+              className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl mb-3 md:mb-6 tracking-tight"
             />
-            <p className="text-sm md:text-lg text-white/40 font-medium tracking-wide px-4">
+            <p className="text-xs sm:text-sm md:text-lg text-white/40 font-medium tracking-wide px-4">
               Next-generation vulnerability scanning for the modern web.
             </p>
           </div>
 
-          <div className="w-full max-w-2xl space-y-6">
+          <div className="w-full max-w-2xl space-y-4 sm:space-y-6">
             {/* Search Bar */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl md:rounded-[32px] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <div className="relative flex items-center bg-bg-card border border-white/10 rounded-2xl md:rounded-[32px] p-1.5 md:p-2 pr-2 shadow-2xl focus-within:border-white/20 focus-within:bg-bg-card/90 transition-all duration-300">
-                <div className="pl-4 md:pl-6 pr-2 md:pr-4 text-white/30">
+                <div className="pl-3 sm:pl-4 md:pl-6 pr-1.5 sm:pr-2 md:pr-4 text-white/30">
                   <Globe className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
                 <input
@@ -241,18 +240,19 @@ export default function Home() {
                   value={targetUrl}
                   onChange={(e) => setTargetUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleScan()}
-                  className="w-full bg-transparent border-none text-white px-2 py-3 md:py-5 outline-none focus:outline-none focus:ring-0 placeholder:text-white/20 text-base md:text-xl font-medium tracking-tight"
+                  className="w-full bg-transparent border-none text-white px-2 py-2.5 sm:py-3 md:py-5 outline-none focus:outline-none focus:ring-0 placeholder:text-white/20 text-sm sm:text-base md:text-xl font-medium tracking-tight"
                   disabled={isScanning}
                 />
                 <button
                   onClick={handleScan}
                   disabled={isScanning || !targetUrl}
                   className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.2)] flex-shrink-0"
+                  aria-label="Start Scan"
                 >
                   {isScanning ? (
                     <div className="w-5 h-5 md:w-6 md:h-6 border-3 border-black/30 border-t-black rounded-full animate-spin" />
                   ) : (
-                    <ChevronRight className="w-6 h-6 md:w-8 md:h-8 ml-0.5" />
+                    <ChevronRight className="w-5 h-5 md:w-8 md:h-8 ml-0.5" />
                   )}
                 </button>
               </div>
@@ -349,21 +349,21 @@ export default function Home() {
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
                           transition={{ duration: 0.25, ease: "easeInOut" }}
-                          className="grid grid-cols-2 gap-4 overflow-hidden"
+                          className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 overflow-hidden"
                         >
                           <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             placeholder="Username"
-                            className="w-full bg-white/5 border border-white/10 rounded-[20px] px-5 py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 text-sm font-medium outline-none relative z-10 transition-colors focus:bg-white/10"
+                            className="w-full bg-white/5 border border-white/10 rounded-[18px] sm:rounded-[20px] px-4 sm:px-5 py-3 sm:py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 text-sm font-medium outline-none relative z-10 transition-colors focus:bg-white/10"
                           />
                           <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Password"
-                            className="w-full bg-white/5 border border-white/10 rounded-[20px] px-5 py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 text-sm font-medium outline-none relative z-10 transition-colors focus:bg-white/10"
+                            className="w-full bg-white/5 border border-white/10 rounded-[18px] sm:rounded-[20px] px-4 sm:px-5 py-3 sm:py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 text-sm font-medium outline-none relative z-10 transition-colors focus:bg-white/10"
                           />
                         </motion.div>
                       )}
@@ -395,15 +395,15 @@ export default function Home() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               {[
                 { label: "READY", value: "100%", color: "text-blue-400" },
                 { label: "SECURE", value: "SSL", color: "text-green-400" },
                 { label: "MODE", value: isStealth ? "STH" : "STD", color: isStealth ? "text-purple-400" : "text-white" },
               ].map((stat, i) => (
-                <div key={i} className="bg-bg-card border border-white/5 rounded-[28px] p-5 text-center flex flex-col items-center justify-center">
-                  <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mb-2">{stat.label}</p>
-                  <p className={`text-2xl font-bold ${stat.color} text-glow`}>{stat.value}</p>
+                <div key={i} className="bg-bg-card border border-white/5 rounded-2xl sm:rounded-[28px] p-3 sm:p-5 text-center flex flex-col items-center justify-center">
+                  <p className="text-[9px] sm:text-[10px] font-bold tracking-[0.15em] sm:tracking-[0.2em] text-white/30 mb-1 sm:mb-2">{stat.label}</p>
+                  <p className={`text-lg sm:text-2xl font-bold ${stat.color} text-glow`}>{stat.value}</p>
                 </div>
               ))}
             </div>
@@ -411,6 +411,6 @@ export default function Home() {
           </div>
         </div>
       </motion.div>
-    </main>
+    </div>
   );
 }

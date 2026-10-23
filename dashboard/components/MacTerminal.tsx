@@ -24,13 +24,13 @@ export function MacTerminal({ logs, isRunning = true, title = "system_init.exe" 
             <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-[5] bg-[length:100%_2px,3px_100%] opacity-20"></div>
 
             {/* Window Chrome */}
-            <div className="flex items-center gap-4 px-4 py-3 bg-[#161B22]/80 border-b border-cyan-500/10 z-10 shrink-0">
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#FF5F56] opacity-80" />
-                    <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-80" />
-                    <div className="w-3 h-3 rounded-full bg-[#27CA40] opacity-80" />
+            <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-3 bg-[#161B22]/80 border-b border-cyan-500/10 z-10 shrink-0">
+                <div className="flex items-center gap-1.5 md:gap-2">
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-[#FF5F56] opacity-80" />
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-[#FFBD2E] opacity-80" />
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-[#27CA40] opacity-80" />
                 </div>
-                <div className="flex-1 font-mono text-sm text-cyan-500/50">
+                <div className="flex-1 font-mono text-xs md:text-sm text-cyan-500/50 truncate">
                     {title}
                 </div>
             </div>
@@ -38,7 +38,7 @@ export function MacTerminal({ logs, isRunning = true, title = "system_init.exe" 
             {/* Terminal Content */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-6 font-mono text-sm space-y-2 glass-scrollbar relative z-10"
+                className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 font-mono text-xs md:text-sm space-y-1.5 md:space-y-2 glass-scrollbar relative z-10"
                 style={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace" }}
             >
                 {(!logs || logs.length === 0) && (
