@@ -1,0 +1,245 @@
+# ══════════════════════════════════════════════════════════════
+#  VerseScan — Network-Segmented Docker Compose
+#  Three zones: net_red (attack), net_blue (defense), net_llm (AI)
+# ══════════════════════════════════════════════════════════════
+version: "3.9"
+
+# ── Network Definitions ──────────────────────────────────────
+networks:
+  net_red:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+    labels:
+      zone: "red"
+      description: "Attack/Scanning zone — scanner engine + sandboxed targets"
+
+  net_blue:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+          gateway: 172.31.0.1
+    labels:
+      zone: "blue"
+      description: "Defense/Monitoring zone — API gateway, dashboard, DB, logging"
+
+  net_llm:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24
+          gateway: 172.32.0.1
+    labels:
+      zone: "llm"
+      description: "AI/LLM zone — isolated model inference services"
+
+# ── Volume Definitions ───────────────────────────────────────
+volumes:
+  supabase_data:
+  scan_reports:
+  sandbox_tmp:
+
+# ── Services ─────────────────────────────────────────────────
+services:
+
+  # ╔══════════════════════════════════════════════════════════╗
+  # ║  NET_RED — Attack / Scanning Zone                       ║
+  # ╚══════════════════════════════════════════════════════════╝
+
+  # Scanner Engine — the core FastAPI vulnerability scanner
+  scanner-engine:
+    build:
+      context: ../../scanner-engine
+      dockerfile: ../infrastructure/docker/Dockerfile.scanner
+    container_name: vs-scanner-engine
+    hostname: scanner-engine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SANDBOX_ORCHESTRATOR_URL=http://sandbox-orchestrator:9000
+      - LLM_SERVICE_URL=http://llm-gateway:8800
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - scan_reports:/app/reports
+    networks:
+      net_red:
+        ipv4_address: 172.30.0.10
+      net_blue:
+        ipv4_address: 172.31.0.10
+    # Scanner lives in BOTH red (to reach targets) and blue (to reach API/DB)
+    depends_on:
+      - sandbox-orchestrator
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Sandbox Orchestrator — manages ephemeral target containers
+  sandbox-orchestrator:
+    build:
+      context: ../../scanner-engine
+      dockerfile: ../infrastructure/docker/Dockerfile.orchestrator
+    container_name: vs-sandbox-orchestrator
+    hostname: sandbox-orchestrator
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - SANDBOX_NETWORK=infrastructure_net_red
+      - SANDBOX_SUBNET=172.30.0.0/24
+      - MAX_SANDBOXES=10
+      - SANDBOX_TTL_SECONDS=600
+      - SANDBOX_MEMORY_LIMIT=256m
+      - SANDBOX_CPU_LIMIT=0.5
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - sandbox_tmp:/tmp/sandboxes
+    networks:
+      net_red:
+        ipv4_address: 172.30.0.5
+      net_blue:
+        ipv4_address: 172.31.0.5
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Vulnerable App — default sandboxed target for demos
+  vulnerable-app:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.vulnerable
+    container_name: vs-vulnerable-app
+    hostname: vulnerable-app
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - TARGET_PORT=8081
+    networks:
+      net_red:
+        ipv4_address: 172.30.0.20
+    # ONLY on net_red — completely isolated from blue/llm
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ╔══════════════════════════════════════════════════════════╗
+  # ║  NET_BLUE — Defense / Monitoring Zone                   ║
+  # ╚══════════════════════════════════════════════════════════╝
+
+  # API Gateway — reverse proxy routing + rate limiting
+  api-gateway:
+    image: nginx:1.25-alpine
+    container_name: vs-api-gateway
+    hostname: api-gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      net_blue:
+        ipv4_address: 172.31.0.2
+    depends_on:
+      - scanner-engine
+      - dashboard
+
+  # Dashboard — Next.js frontend
+  dashboard:
+    build:
+      context: ../../dashboard
+      dockerfile: ../infrastructure/docker/Dockerfile.dashboard
+    container_name: vs-dashboard
+    hostname: dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api-gateway
+      - NODE_ENV=production
+    networks:
+      net_blue:
+        ipv4_address: 172.31.0.3
+    depends_on:
+      - scanner-engine
+
+  # Report Generator service (dedicated for heavy PDF jobs)
+  report-generator:
+    build:
+      context: ../../scanner-engine
+      dockerfile: ../infrastructure/docker/Dockerfile.report
+    container_name: vs-report-generator
+    hostname: report-generator
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - REPORT_OUTPUT_DIR=/app/reports
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - scan_reports:/app/reports
+    networks:
+      net_blue:
+        ipv4_address: 172.31.0.15
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ╔══════════════════════════════════════════════════════════╗
+  # ║  NET_LLM — AI / LLM Inference Zone                     ║
+  # ╚══════════════════════════════════════════════════════════╝
+
+  # LLM Gateway — proxy to Featherless AI / local models
+  llm-gateway:
+    build:
+      context: ../../scanner-engine
+      dockerfile: ../infrastructure/docker/Dockerfile.llm
+    container_name: vs-llm-gateway
+    hostname: llm-gateway
+    restart: unless-stopped
+    ports:
+      - "8800:8800"
+    environment:
+      - FEATHERLESS_API_KEY=${FEATHERLESS_API_KEY:-}
+      - FEATHERLESS_API_URL=${FEATHERLESS_API_URL:-https://api.featherless.ai/v1}
+      - LLM_MODEL=${LLM_MODEL:-meta-llama/Meta-Llama-3.1-8B-Instruct}
+      - LLM_MAX_TOKENS=2048
+      - LLM_TEMPERATURE=0.3
+      - PYTHONUNBUFFERED=1
+    networks:
+      net_llm:
+        ipv4_address: 172.32.0.10
+      net_blue:
+        ipv4_address: 172.31.0.20
+    # LLM gateway bridges net_llm (isolation) and net_blue (API access)
+    # It does NOT touch net_red — scanner proxies through blue
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8800/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

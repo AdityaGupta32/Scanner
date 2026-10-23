@@ -1,0 +1,459 @@
+# ══════════════════════════════════════════════════════════════
+#  VerseScan — Kubernetes Deployments & Services
+# ══════════════════════════════════════════════════════════════
+
+---
+# ── Scanner Engine ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scanner-engine
+  namespace: versescan
+  labels:
+    app: scanner-engine
+    zone: red
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scanner-engine
+      zone: red
+  template:
+    metadata:
+      labels:
+        app: scanner-engine
+        zone: red
+    spec:
+      containers:
+        - name: scanner-engine
+          image: versescan/scanner-engine:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: versescan-secrets
+                  key: supabase-url
+            - name: SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versescan-secrets
+                  key: supabase-key
+            - name: SANDBOX_ORCHESTRATOR_URL
+              value: "http://sandbox-orchestrator:9000"
+            - name: LLM_SERVICE_URL
+              value: "http://llm-gateway:8800"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scanner-engine
+  namespace: versescan
+spec:
+  selector:
+    app: scanner-engine
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
+---
+# ── Sandbox Orchestrator ─────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-orchestrator
+  namespace: versescan
+  labels:
+    app: sandbox-orchestrator
+    zone: red
+    role: orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-orchestrator
+      zone: red
+      role: orchestrator
+  template:
+    metadata:
+      labels:
+        app: sandbox-orchestrator
+        zone: red
+        role: orchestrator
+    spec:
+      serviceAccountName: sandbox-orchestrator-sa
+      containers:
+        - name: orchestrator
+          image: versescan/sandbox-orchestrator:latest
+          ports:
+            - containerPort: 9000
+          env:
+            - name: MAX_SANDBOXES
+              value: "10"
+            - name: SANDBOX_TTL_SECONDS
+              value: "600"
+            - name: SANDBOX_MEMORY_LIMIT
+              value: "256m"
+            - name: SANDBOX_CPU_LIMIT
+              value: "0.5"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-orchestrator
+  namespace: versescan
+spec:
+  selector:
+    app: sandbox-orchestrator
+  ports:
+    - port: 9000
+      targetPort: 9000
+  type: ClusterIP
+
+---
+# ── Vulnerable App (Default Target) ─────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vulnerable-app
+  namespace: versescan
+  labels:
+    app: vulnerable-app
+    zone: red
+    role: target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vulnerable-app
+      zone: red
+      role: target
+  template:
+    metadata:
+      labels:
+        app: vulnerable-app
+        zone: red
+        role: target
+    spec:
+      containers:
+        - name: vulnerable-app
+          image: versescan/vulnerable-app:latest
+          ports:
+            - containerPort: 8081
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vulnerable-app
+  namespace: versescan
+spec:
+  selector:
+    app: vulnerable-app
+    role: target
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP
+
+---
+# ── Dashboard ────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: versescan
+  labels:
+    app: dashboard
+    zone: blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard
+      zone: blue
+  template:
+    metadata:
+      labels:
+        app: dashboard
+        zone: blue
+    spec:
+      containers:
+        - name: dashboard
+          image: versescan/dashboard:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://scanner-engine:8000"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: versescan
+spec:
+  selector:
+    app: dashboard
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+---
+# ── Report Generator ────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-generator
+  namespace: versescan
+  labels:
+    app: report-generator
+    zone: blue
+    role: report-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-generator
+      zone: blue
+      role: report-generator
+  template:
+    metadata:
+      labels:
+        app: report-generator
+        zone: blue
+        role: report-generator
+    spec:
+      containers:
+        - name: report-generator
+          image: versescan/report-generator:latest
+          ports:
+            - containerPort: 9100
+          env:
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: versescan-secrets
+                  key: supabase-url
+            - name: SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versescan-secrets
+                  key: supabase-key
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: reports-volume
+              mountPath: /app/reports
+      volumes:
+        - name: reports-volume
+          persistentVolumeClaim:
+            claimName: scan-reports-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-generator
+  namespace: versescan
+spec:
+  selector:
+    app: report-generator
+  ports:
+    - port: 9100
+      targetPort: 9100
+  type: ClusterIP
+
+---
+# ── LLM Gateway ─────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: versescan
+  labels:
+    app: llm-gateway
+    zone: llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-gateway
+      zone: llm
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+        zone: llm
+    spec:
+      containers:
+        - name: llm-gateway
+          image: versescan/llm-gateway:latest
+          ports:
+            - containerPort: 8800
+          env:
+            - name: FEATHERLESS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: versescan-secrets
+                  key: featherless-api-key
+                  optional: true
+            - name: FEATHERLESS_API_URL
+              value: "https://api.featherless.ai/v1"
+            - name: LLM_MODEL
+              value: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway
+  namespace: versescan
+spec:
+  selector:
+    app: llm-gateway
+  ports:
+    - port: 8800
+      targetPort: 8800
+  type: ClusterIP
+
+---
+# ── RBAC for Sandbox Orchestrator ────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sandbox-orchestrator-sa
+  namespace: versescan
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sandbox-manager
+  namespace: versescan
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "delete", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sandbox-manager-binding
+  namespace: versescan
+subjects:
+  - kind: ServiceAccount
+    name: sandbox-orchestrator-sa
+    namespace: versescan
+roleRef:
+  kind: Role
+  name: sandbox-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ── PVC for Reports ─────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scan-reports-pvc
+  namespace: versescan
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# ── Ingress ──────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: versescan-ingress
+  namespace: versescan
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  rules:
+    - host: versescan.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: scanner-engine
+                port:
+                  number: 8000
+          - path: /report
+            pathType: Prefix
+            backend:
+              service:
+                name: report-generator
+                port:
+                  number: 9100
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 3000

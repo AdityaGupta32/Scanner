@@ -7,3 +7,6 @@ pydantic
 supabase
 fpdf2
 python-dotenv
+docker
+httpx
+python-multipart

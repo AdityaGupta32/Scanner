@@ -1,0 +1,23 @@
+# ══════════════════════════════════════════════════════════════
+#  Dockerfile.vulnerable — Sandboxed Vulnerable Target App
+# ══════════════════════════════════════════════════════════════
+FROM python:3.11-slim
+
+LABEL maintainer="VerseScan Team"
+LABEL description="Vulnerable target app — net_red zone ONLY (isolated)"
+LABEL zone="red"
+LABEL sandbox="true"
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir fastapi uvicorn python-multipart
+
+COPY vulnerable_app.py .
+
+EXPOSE 8081
+
+# Run as non-root for sandbox isolation
+RUN useradd -m vuln && chown -R vuln:vuln /app
+USER vuln
+
+CMD ["uvicorn", "vulnerable_app:app", "--host", "0.0.0.0", "--port", "8081"]

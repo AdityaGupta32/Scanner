@@ -1,0 +1,21 @@
+# ══════════════════════════════════════════════════════════════
+#  Dockerfile.llm — LLM Gateway Service
+# ══════════════════════════════════════════════════════════════
+FROM python:3.11-slim
+
+LABEL maintainer="VerseScan Team"
+LABEL description="LLM Gateway — net_llm + net_blue zones"
+LABEL zone="llm,blue"
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir fastapi uvicorn httpx python-dotenv pydantic
+
+COPY llm_gateway.py .
+
+EXPOSE 8800
+
+RUN useradd -m llm && chown -R llm:llm /app
+USER llm
+
+CMD ["uvicorn", "llm_gateway:app", "--host", "0.0.0.0", "--port", "8800"]

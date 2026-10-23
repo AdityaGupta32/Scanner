@@ -36,7 +36,18 @@ class PDFReport(FPDF):
     def sanitize(self, text):
         if text is None:
             return ""
-        return str(text).encode('latin-1', 'replace').decode('latin-1')
+        text = str(text).replace('—', '-').replace('–', '-').replace('•', '*').replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+        return text.encode('latin-1', 'replace').decode('latin-1')
+
+    def cell(self, w, h=0, txt='', border=0, ln=0, align='', fill=False, link=''):
+        if isinstance(txt, str):
+            txt = self.sanitize(txt)
+        return super().cell(w, h, txt, border, ln, align, fill, link)
+
+    def multi_cell(self, w, h, txt='', border=0, align='J', fill=False):
+        if isinstance(txt, str):
+            txt = self.sanitize(txt)
+        return super().multi_cell(w, h, txt, border, align, fill)
 
     # ── Header ────────────────────────────────────────────────
     def header(self):

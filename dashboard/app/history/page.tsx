@@ -68,14 +68,24 @@ export default function AnalyticsDashboard() {
         if (!selectedScan) return;
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        // Trigger download via hidden link
-        const a = document.createElement("a");
-        a.href = `${apiUrl}/report/${selectedScan.id}`;
-        a.target = "_blank";
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        
+        // 1. Download VerseScan Technical Report
+        const a1 = document.createElement("a");
+        a1.href = `${apiUrl}/report/${selectedScan.id}`;
+        a1.target = "_blank";
+        document.body.appendChild(a1);
+        a1.click();
+        document.body.removeChild(a1);
+
+        // 2. Download OWASP Audit Report
+        setTimeout(() => {
+            const a2 = document.createElement("a");
+            a2.href = `${apiUrl}/owasp-report/${selectedScan.id}`;
+            a2.target = "_blank";
+            document.body.appendChild(a2);
+            a2.click();
+            document.body.removeChild(a2);
+        }, 400);
     };
 
     useEffect(() => {
@@ -190,10 +200,22 @@ export default function AnalyticsDashboard() {
                                 <button
                                     onClick={handleExport}
                                     className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all whitespace-nowrap"
+                                    title="Download both VerseScan Technical and OWASP GenAI Audit Reports"
                                 >
                                     <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                    Export PDF Report
+                                    Export Reports (2 PDFs)
                                 </button>
+                                {selectedScan && (
+                                    <a
+                                        href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/owasp-report/${selectedScan.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="glass-button border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/40 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm flex items-center gap-1.5 transition-all whitespace-nowrap"
+                                    >
+                                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                                        OWASP Audit Only
+                                    </a>
+                                )}
                             </div>
                         </div>
 

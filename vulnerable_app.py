@@ -198,5 +198,13 @@ async def fake_sqli(id: str = "1"):
 
 if __name__ == "__main__":
     import uvicorn
-    # Run on Port 8081 to avoid conflict with Scanner (8000) and Dashboard (3000)
-    uvicorn.run(app, host="127.0.0.1", port=8081)
+    import socket
+
+    def is_port_in_use(p: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', p)) == 0
+
+    default_port = 8081 if not is_port_in_use(8081) else 8082
+    port = int(os.environ.get("TARGET_PORT", os.environ.get("PORT", default_port)))
+    print(f"[*] Starting Vulnerable App on http://127.0.0.1:{port}")
+    uvicorn.run(app, host="127.0.0.1", port=port)

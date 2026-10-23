@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { AlertCircle, CheckCircle, Loader2, ShieldAlert, Code, Activity, Search, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, ShieldAlert, Code, Activity, Search, ChevronLeft, ChevronRight, Filter, Download, FileText } from "lucide-react";
 
 interface ScanData {
     status: string;
@@ -120,17 +120,47 @@ export function ScanResults({ scanId }: { scanId: string }) {
                     </h3>
 
                     <div className="flex items-center gap-3 w-full md:w-auto">
-                        {/* Download Report Button */}
+                        {/* Download Report Buttons */}
                         {data.status === "Completed" && (
-                            <a
-                                href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/report/${scanId}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-2 bg-cyan-950/30 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/50 hover:border-cyan-400/50 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap"
-                            >
-                                <Download className="w-4 h-4" />
-                                Export PDF
-                            </a>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                                        // 1. Download VerseScan Report
+                                        const a1 = document.createElement("a");
+                                        a1.href = `${apiUrl}/report/${scanId}`;
+                                        a1.target = "_blank";
+                                        document.body.appendChild(a1);
+                                        a1.click();
+                                        document.body.removeChild(a1);
+
+                                        // 2. Download OWASP Audit Report
+                                        setTimeout(() => {
+                                            const a2 = document.createElement("a");
+                                            a2.href = `${apiUrl}/owasp-report/${scanId}`;
+                                            a2.target = "_blank";
+                                            document.body.appendChild(a2);
+                                            a2.click();
+                                            document.body.removeChild(a2);
+                                        }, 400);
+                                    }}
+                                    className="flex items-center gap-1.5 bg-cyan-950/40 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/60 hover:border-cyan-400 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap"
+                                    title="Download both VerseScan Technical Report and OWASP Audit PDF"
+                                >
+                                    <Download className="w-3.5 h-3.5 text-cyan-400" />
+                                    Export PDFs (Both)
+                                </button>
+                                <a
+                                    href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/owasp-report/${scanId}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 bg-emerald-950/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/50 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
+                                    title="Download OWASP GenAI Compliance Audit Only"
+                                >
+                                    <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                                    OWASP Audit
+                                </a>
+                            </div>
                         )}
 
                         {/* Search Bar */}

@@ -8,6 +8,8 @@ import { MacTerminal } from "@/components/MacTerminal";
 import { LiveFindingCard } from "@/components/LiveFindingCard";
 import { Sidebar } from "@/components/Sidebar";
 import { GlitchHeading } from "@/components/GlitchHeading";
+import { RedBlueCombatArena } from "@/components/RedBlueCombatArena";
+import { DualCombatTerminals } from "@/components/DualCombatTerminals";
 
 interface Finding {
     name: string;
@@ -244,17 +246,22 @@ function LiveActivityContent() {
                             </div>
                         </div>
 
-                        <button
-                            onClick={() => router.push("/")}
-                            className={`px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center gap-2 transition-all ${isComplete
-                                ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_20px_rgba(16,185,129,0.3)]"
-                                : "bg-white/5 text-white/40"
-                                }`}
-                            disabled={!isComplete}
-                        >
-                            <CheckCircle2 className="w-4 h-4" />
-                            {isComplete ? "Complete" : "Scanning..."}
-                        </button>
+                        {/* Right side of Live Scan: Red vs Blue Combat Arena & Status Button */}
+                        <div className="flex items-center gap-3">
+                            <RedBlueCombatArena isComplete={isComplete} />
+
+                            <button
+                                onClick={() => router.push("/")}
+                                className={`px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl text-xs md:text-sm font-medium flex items-center gap-2 transition-all ${isComplete
+                                    ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                                    : "bg-white/5 text-white/40"
+                                    }`}
+                                disabled={!isComplete}
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                {isComplete ? "Complete" : "Scanning..."}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Stats Row - Compact on Mobile */}
@@ -291,7 +298,7 @@ function LiveActivityContent() {
 
                     {/* Split View - Stacked on Mobile, Side-by-side on Desktop */}
                     <div className="flex-none lg:flex-1 flex flex-col lg:grid lg:grid-cols-2 gap-3 md:gap-4 lg:min-h-0 lg:overflow-hidden">
-                        {/* Terminal Column - Smaller height on mobile */}
+                        {/* Left Column: Output Terminal - Full Original Size */}
                         <div className="flex flex-col h-[200px] md:h-[300px] lg:h-full bg-bg-base rounded-xl md:rounded-[24px] border border-white/5 overflow-hidden shadow-2xl">
                             <div className="flex-1 overflow-hidden">
                                 <MacTerminal
@@ -302,39 +309,47 @@ function LiveActivityContent() {
                             </div>
                         </div>
 
-                        {/* Live Findings Column */}
+                        {/* Right Column: Live Findings Section with Red & Blue Terminals */}
                         <div className="flex flex-col lg:flex-1 lg:h-full lg:overflow-hidden mt-4 lg:mt-0">
-                            <div className="flex flex-col gap-2 mb-2 md:mb-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm md:text-lg font-semibold text-white/90">Findings</h3>
-                                    <span className="text-[10px] md:text-xs px-2 py-0.5 md:py-1 rounded-full bg-white/5 text-white/40 border border-white/5">{filteredFindings?.length || 0}</span>
+                            {/* Compact Red & Blue Combat Terminals (Critical, High & Medium) */}
+                            <div className="h-[125px] md:h-[135px] shrink-0 mb-2">
+                                <DualCombatTerminals findings={findings} isRunning={!isComplete} />
+                            </div>
+
+                            {/* Streamlined Controls Header */}
+                            <div className="flex flex-col gap-1.5 mb-2 shrink-0">
+                                {/* Row 1: Title + Severity Badges on Same Line */}
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <h3 className="text-sm md:text-base font-semibold text-white/90">Findings</h3>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-mono font-medium">{filteredFindings?.length || 0}</span>
+                                    </div>
+
+                                    {/* Severity Pills - Sleek & Compact */}
+                                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                        {[
+                                            { key: "all", label: "All", color: "bg-white/15 text-white" },
+                                            { key: "critical", label: `⚠️ ${criticalCount}`, color: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
+                                            { key: "high", label: `🔴 ${highCount}`, color: "bg-red-500/20 text-red-300 border-red-500/40" },
+                                            { key: "medium", label: `🟡 ${mediumCount}`, color: "bg-amber-500/20 text-amber-300 border-amber-500/40" },
+                                            { key: "low", label: `🔵 ${lowCount}`, color: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
+                                        ].map((filter) => (
+                                            <button
+                                                key={filter.key}
+                                                onClick={() => setSeverityFilter(severityFilter === filter.key ? "all" : filter.key)}
+                                                className={`text-[9px] md:text-[10px] px-2 py-0.5 rounded-md transition-all whitespace-nowrap flex-shrink-0 ${severityFilter === filter.key
+                                                    ? `${filter.color} border`
+                                                    : "bg-white/5 text-white/40 hover:bg-white/10 border border-transparent"
+                                                    }`}
+                                            >
+                                                {filter.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
-                                {/* Severity Filters */}
-                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                                    {[
-                                        { key: "all", label: "All", color: "bg-white/10 text-white" },
-                                        { key: "critical", label: `⚠️ ${criticalCount}`, color: "bg-purple-500/20 text-purple-400" },
-                                        { key: "high", label: `🔴 ${highCount}`, color: "bg-red-500/20 text-red-400" },
-                                        { key: "medium", label: `🟡 ${mediumCount}`, color: "bg-amber-500/20 text-amber-400" },
-                                        { key: "low", label: `🔵 ${lowCount}`, color: "bg-blue-500/20 text-blue-400" },
-                                        { key: "info", label: `ℹ️ ${findings.filter(f => f.severity?.toLowerCase() === "info").length}`, color: "bg-gray-500/20 text-gray-400" },
-                                    ].map((filter) => (
-                                        <button
-                                            key={filter.key}
-                                            onClick={() => setSeverityFilter(severityFilter === filter.key ? "all" : filter.key)}
-                                            className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${severityFilter === filter.key
-                                                ? `${filter.color} border border-current`
-                                                : "bg-white/5 text-white/40 hover:bg-white/10 border border-transparent"
-                                                }`}
-                                        >
-                                            {filter.label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Category Filters */}
-                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                                {/* Row 2: Category Pills - Single Compact Strip */}
+                                <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
                                     {[
                                         { key: "all", label: "All Types", icon: Layers },
                                         { key: "injection", label: `SQLi`, icon: Database, count: injectionCount },
@@ -342,17 +357,16 @@ function LiveActivityContent() {
                                         { key: "access", label: `Access`, icon: Lock, count: accessCount },
                                         { key: "auth", label: `Auth`, icon: Key, count: authCount },
                                         { key: "info", label: `Info`, icon: Info, count: infoCount },
-                                        { key: "other", label: `Other`, icon: Layers, count: otherCount },
                                     ].map((filter) => (
                                         <button
                                             key={filter.key}
                                             onClick={() => setCategoryFilter(categoryFilter === filter.key ? "all" : filter.key)}
-                                            className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 ${categoryFilter === filter.key
-                                                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                                            className={`text-[9px] md:text-[10px] px-2 py-0.5 rounded-md transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-1 ${categoryFilter === filter.key
+                                                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                                                 : "bg-white/5 text-white/40 hover:bg-white/10 border border-transparent"
                                                 }`}
                                         >
-                                            <filter.icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                                            <filter.icon className="w-2.5 h-2.5" />
                                             <span>{filter.label}</span>
                                             {filter.count !== undefined && filter.count > 0 && (
                                                 <span className="text-[8px] bg-white/10 px-1 rounded">{filter.count}</span>

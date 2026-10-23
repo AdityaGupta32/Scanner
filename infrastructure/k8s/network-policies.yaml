@@ -1,0 +1,437 @@
+# ══════════════════════════════════════════════════════════════
+#  VerseScan — Kubernetes Network Policies
+#  Enforces net_red / net_blue / net_llm segmentation in K8s
+# ══════════════════════════════════════════════════════════════
+
+---
+# ── Namespace ─────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: versescan
+  labels:
+    app: versescan
+
+---
+# ══════════════════════════════════════════════════════════════
+#  DEFAULT DENY — Block all ingress/egress by default
+#  Everything must be explicitly allowed via policies below
+# ══════════════════════════════════════════════════════════════
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: versescan
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# ══════════════════════════════════════════════════════════════
+#  NET_RED ZONE — Attack / Scanning
+#  Pods: scanner-engine, sandbox-orchestrator, vulnerable-app
+# ══════════════════════════════════════════════════════════════
+
+# Scanner Engine: Can reach targets in red, API in blue, but NOT llm directly
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-red-scanner-engine
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: scanner-engine
+      zone: red
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Accept traffic from API gateway (blue zone)
+    - from:
+        - podSelector:
+            matchLabels:
+              zone: blue
+              role: gateway
+      ports:
+        - port: 8000
+          protocol: TCP
+    # Accept traffic from report-generator
+    - from:
+        - podSelector:
+            matchLabels:
+              zone: blue
+              role: report-generator
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    # Can reach sandboxed targets in red zone
+    - to:
+        - podSelector:
+            matchLabels:
+              zone: red
+              role: target
+      ports:
+        - port: 8081
+          protocol: TCP
+        - port: 8082
+          protocol: TCP
+        - port: 8083
+          protocol: TCP
+    # Can reach sandbox orchestrator
+    - to:
+        - podSelector:
+            matchLabels:
+              zone: red
+              role: orchestrator
+      ports:
+        - port: 9000
+          protocol: TCP
+    # Can reach blue zone services (API, DB)
+    - to:
+        - podSelector:
+            matchLabels:
+              zone: blue
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 5432
+          protocol: TCP
+    # DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+    # External targets (for scanning external URLs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 172.32.0.0/24   # Block direct LLM access
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+        - port: 8080
+          protocol: TCP
+        - port: 8081
+          protocol: TCP
+
+---
+# Sandbox Orchestrator: Manages containers, needs Docker API access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-red-orchestrator
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: sandbox-orchestrator
+      zone: red
+      role: orchestrator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Accept from scanner engine only
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+              zone: red
+      ports:
+        - port: 9000
+          protocol: TCP
+    # Accept from blue zone (API/dashboard monitoring)
+    - from:
+        - podSelector:
+            matchLabels:
+              zone: blue
+      ports:
+        - port: 9000
+          protocol: TCP
+  egress:
+    # Manage sandboxed target pods
+    - to:
+        - podSelector:
+            matchLabels:
+              zone: red
+              role: target
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# Vulnerable App / Sandbox Targets: STRICTLY isolated, red zone ONLY
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-red-targets
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      zone: red
+      role: target
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # ONLY accept traffic from scanner engine
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+              zone: red
+      ports:
+        - port: 8081
+          protocol: TCP
+        - port: 8082
+          protocol: TCP
+        - port: 8083
+          protocol: TCP
+  egress:
+    # Targets CANNOT reach anything — fully sandboxed
+    # (empty egress = deny all outbound)
+    []
+
+---
+# ══════════════════════════════════════════════════════════════
+#  NET_BLUE ZONE — Defense / Monitoring
+#  Pods: api-gateway, dashboard, report-generator
+# ══════════════════════════════════════════════════════════════
+
+# API Gateway: Accepts external traffic, routes to scanner + dashboard
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-blue-api-gateway
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+      zone: blue
+      role: gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Accept external traffic (LoadBalancer / Ingress)
+    - from: []
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+  egress:
+    # Route to scanner engine
+    - to:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+      ports:
+        - port: 8000
+          protocol: TCP
+    # Route to dashboard
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dashboard
+              zone: blue
+      ports:
+        - port: 3000
+          protocol: TCP
+    # Route to report generator
+    - to:
+        - podSelector:
+            matchLabels:
+              app: report-generator
+              zone: blue
+      ports:
+        - port: 9100
+          protocol: TCP
+    # Route to sandbox orchestrator (monitoring)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sandbox-orchestrator
+      ports:
+        - port: 9000
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# Dashboard: Blue zone only, reaches scanner API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-blue-dashboard
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard
+      zone: blue
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: gateway
+              zone: blue
+      ports:
+        - port: 3000
+          protocol: TCP
+  egress:
+    # Reach scanner engine API
+    - to:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+      ports:
+        - port: 8000
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# Report Generator: Blue zone, reaches scanner for data
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-blue-report-generator
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: report-generator
+      zone: blue
+      role: report-generator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: gateway
+              zone: blue
+      ports:
+        - port: 9100
+          protocol: TCP
+  egress:
+    # Reach scanner for scan data
+    - to:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+      ports:
+        - port: 8000
+          protocol: TCP
+    # Reach LLM gateway for AI-powered analysis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: llm-gateway
+      ports:
+        - port: 8800
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# ══════════════════════════════════════════════════════════════
+#  NET_LLM ZONE — AI / LLM Inference
+#  Pods: llm-gateway
+# ══════════════════════════════════════════════════════════════
+
+# LLM Gateway: Bridges LLM zone + Blue zone, accesses external AI APIs
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: net-llm-gateway
+  namespace: versescan
+spec:
+  podSelector:
+    matchLabels:
+      app: llm-gateway
+      zone: llm
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Accept from blue zone (scanner, report-generator)
+    - from:
+        - podSelector:
+            matchLabels:
+              zone: blue
+      ports:
+        - port: 8800
+          protocol: TCP
+    # Accept from scanner engine (red+blue dual-homed)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scanner-engine
+      ports:
+        - port: 8800
+          protocol: TCP
+  egress:
+    # External API calls to Featherless AI / OpenAI / etc
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 172.30.0.0/24   # Block access to red zone targets
+      ports:
+        - port: 443
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP

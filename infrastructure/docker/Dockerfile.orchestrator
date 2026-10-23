@@ -1,0 +1,26 @@
+# ══════════════════════════════════════════════════════════════
+#  Dockerfile.orchestrator — Dynamic Sandbox Orchestrator
+# ══════════════════════════════════════════════════════════════
+FROM python:3.11-slim
+
+LABEL maintainer="VerseScan Team"
+LABEL description="Dynamic Sandbox Orchestrator — container lifecycle manager"
+LABEL zone="red,blue"
+
+WORKDIR /app
+
+# Docker CLI for orchestration
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker.io curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir fastapi uvicorn docker python-dotenv pydantic
+
+COPY sandbox_orchestrator.py .
+
+RUN mkdir -p /tmp/sandboxes
+
+EXPOSE 9000
+
+CMD ["uvicorn", "sandbox_orchestrator:app", "--host", "0.0.0.0", "--port", "9000"]
